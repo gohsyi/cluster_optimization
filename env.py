@@ -1,15 +1,21 @@
 import os
 import pandas as pd
-from queue import Queue
+import numpy as np
+from model.local_tier import Machine
 
 
 class Env(object):
-    def __init__(self, n_servers):
-        self.n_servers = n_servers
-        self.p_idle = 87
-        self.p_full = 145
-        self.t_on = 30
-        self.t_off = 30
+    def __init__(self, args):
+        self.args = args
+        self.P_0 = args.P_0
+        self.P_100 = args.P_100
+        self.T_on = args.T_on
+        self.T_off = args.T_off
+        self.n_servers = args.n_servers
+
+        self.w1 = args.w1
+        self.w2 = args.w2
+        self.w3 = args.w3
 
         #  data paths
         self.machine_meta_path = os.path.join('data', 'machine_meta.csv')
@@ -106,14 +112,11 @@ class Env(object):
 
         self.n_machines = self.n_servers
         self.machines = [
-            Machine(self.machine_meta[i]['cpu_num'],
-                    self.machine_meta[i]['mem_size']
+            Machine(self.args,
+                    self.machine_meta.iloc[i]['cpu_num'],
+                    self.machine_meta.iloc[i]['mem_size']
             ) for i in range(self.n_machines)
         ]
-
-    def sleep(self, id, time):
-        if time > 0:
-            self.machines[id].sleep(self.cur_time + time + self.t_off + self.t_on)
 
     def reset(self):
         self.cur_task = 0
@@ -124,12 +127,7 @@ class Env(object):
             self.batch_task[self.cur_task]['plan_cpu'],
             self.batch_task[self.cur_task]['plan_mem']
         )
-        states = []
-        for m in self.machines:
-            states.extend(m.process(cur_time))
-        states.extend([cur_task.plan_cpu, cur_task.plan_mem, cur_task.end_time - cur_task.start_time])
-
-        return states
+        return self.get_states(cur_task)
 
     def step(self, action):
         self.cur_time = self.batch_task[self.cur_task]['start_time']
@@ -148,71 +146,43 @@ class Env(object):
         )
         self.machines[action].add_task(cur_task)
 
-        states = []
+        ### simulate to current time
         for m in self.machines:
-            states.extend(m.process(self.cur_time))
-        states.extend([nxt_task.plan_cpu, nxt_task.plan_mem, nxt_task.end_time - nxt_task.start_time])
+            m.process(self.cur_time)
 
+        return self.get_states(nxt_task), self.get_reward(), nxt_task
+
+    def get_states(self, nxt_task):
+        states = [m.cpu_idle for m in self.machines] + \
+                 [m.mem_empty for m in self.machines] + \
+                 [nxt_task.plan_cpu, nxt_task.plan_mem, nxt_task.last_time]
         return states
+
+    def get_reward(self):
+        return self.w1 * self.calc_total_power() + \
+               self.w2 * self.calc_number_vms() + \
+               self.w3 * self.calc_reli_obj()
+
+    def calc_total_power(self):
+        for m in self.machines:
+            return self.P_0 + (self.P_100 - self.P_0) * (2 * m.cpu() - m.cpu()**(1.4))
+
+    def calc_number_vms(self):
+        return np.sum([len(m.pending_queue) for m in self.machines])
+
+    def calc_reli_obj(self):
+        return 0
 
 
 class Task(object):
     def __init__(self, start_time, end_time, plan_cpu, plan_mem):
-        self.start_time = start_time
-        self.end_time = end_time
+        self.arrive_time = start_time
+        self.last_time = end_time - start_time
         self.plan_cpu = plan_cpu
         self.plan_mem = plan_mem
 
-    def start(self, actual_start_time):
-        self.actual_start_time = actual_start_time
+    def start(self, start_time):
+        self.start_time = start_time
 
     def done(self, cur_time):
-        return cur_time >= self.end_time - self.start_time + self.actual_start_time
-
-
-class Machine(object):
-    def __init__(self, cpu_num, mem_size):
-        self.waiting_queue = Queue()
-        self.running_queue = Queue()
-        self.cpu_num = cpu_num
-        self.mem_size = mem_size
-        self.cur_task = None
-        self.sleep_util = 0
-
-    def add_task(self, task):
-        self.waiting_queue.put(task)
-
-    def sleep(self, sleep_util):
-        self.sleep_util = sleep_util
-
-    def process(self, cur_time):
-        running_queue = Queue()
-        waiting_queue = Queue()
-
-        if cur_time >= self.sleep_util:
-            while not self.running_queue.empty():
-                task = self.running_queue.get()
-                if task.done(cur_time):
-                    self.cpu_num += task.plan_cpu
-                    self.mem_size += task.plan_mem
-                else:
-                    running_queue.put(task)
-
-            while not self.waiting_queue.empty():
-                task = self.running_queue.get()
-                if task.plan_cpu <= self.cpu_num and task.plan_mem <= self.mem_size:
-                    self.cpu_num -= task.plan_cpu
-                    self.mem_size -= task.plan_mem
-                    task.start(cur_time)
-                    running_queue.put(task)
-                else:
-                    waiting_queue.put(task)
-
-            self.running_queue = running_queue
-            self.waiting_queue = waiting_queue
-
-        return [self.cpu_num, self.mem_size]
-
-
-if __name__ == '__main__':
-    env = Env(100)
+        return cur_time >= self.start_time + self.last_time

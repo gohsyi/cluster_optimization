@@ -1,158 +1,110 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sun May  5 00:21:40 2019
-
-@author: yeshe
-"""
+import heapq
+import numpy as np
+import tensorflow as tf
+from collections import deque
 from model.predictor import Predictor
-from model.base import BaseModel
 from model.dqn import DeepQNetwork
 
-import numpy as np
 
-
-class LocalTier(BaseModel):
-    def __init__(self, args):
-        super(LocalTier, self).__init__(args)
-        self.n_features = 100
-        self.n_actions = 100
-        self.w = .5
-
+class Machine(object):
+    def __init__(self, args, cpu_num, mem_size):
+        self.P_0 = args.P_0
+        self.P_100 = args.P_100
         self.T_on = args.T_on
         self.T_off = args.T_off
-        self.P0 = args.P0
-        self.P100 = args.P100
 
-        self.predictor = Predictor(
-            hdims=self.hid_size,
-            memory_size=self.memory_size,
-            lr=self.lr,
-            ac_fn=self.ac_fn,
-            opt_fn=self.opt_fn
-        )
-        self.QL = DeepQNetwork(
-            n_actions=100,
-            n_features=1 + self.n_features,
-            learning_rate=self.lr,
-            replace_target_iter=self.replace_target_iter,
-            memory_size=self.memory_size,
-            batch_size=self.batch_size,
-        )
-        self.index = -1
-        self.work = []
-        self.interval = []
-        self.laststart = 0
-        self.state = 0
-        self.obs_ = [0, 0]
+        self.pending_queue = deque()
+        self.running_queue = []
+
+        self.cpu_num = cpu_num
+        self.mem_size = mem_size
+        self.cpu_idle = cpu_num
+        self.mem_empty = mem_size
+
+        self.cur_task = None
+        self.awake_time = 0
+        self.intervals = deque(maxlen=35 + 1)
+        self.state = 1
+        self.T_on = 30
+        self.T_off = 30
+        self.w = 0.5
+
+        self.n_features = 100
+        self.n_actions = 100
+
+        self.last_arrive_time = 0
+        self.last_obs = None
+        self.last_act = None
+        self.rew = 0
         self.cur_time = 0
-        self.cpu = 0
-        self.doing = []
-        self.doingcost = []
-        self.awake = 0
 
-    def getpower(self, cpu):
-        return self.P0 + (self.P100 - self.P0) * (2 * cpu - cpu ** (1.4))
+        with tf.variable_scope('local_model', reuse=tf.AUTO_REUSE):
+            self.predictor = Predictor(args)
+            self.QL = DeepQNetwork(
+                n_actions=100,
+                n_features=1 + self.n_features
+            )
 
-    def getJob(self, start_time, last_time, cost):
-        if (self.laststart == 0):
-            self.laststart = start_time
-        else:
-            self.interval.append(start_time - self.laststart)
-            self.laststart = start_time
-        if (len(self.interval) > 1):
-            tmp = []
-            if (len(self.interval) > 36):
-                for i in range(35):
-                    tmp.append(self.interval[i + len(self.interval) - 36])
-            else:
-                for i in range(len(self.interval) - 1):
-                    tmp.append(self.interval[i])
-            self.predictor.train(tmp, self.interval[len(self.interval) - 1])
-        if (self.state == 0):
-            self.work.append([last_time, cost])
-            if (self.awake > start_time + self.T_on):
-                self.awake = start_time + self.T_off
-            obs = [0]
-            for i in range(self.n_features):
-                obs.append(0)
-            rew = -(1 - self.w) * len(self.work)
-            act = []
-            for i in range(self.n_actions):
-                act.append(0)
-            self.QL.store_transition(obs, act, rew, self.obs_)
-            self.obs = obs
-        elif (self.state == 1 and self.cpu == 0):
-            obs = [self.getpower(0)]
-            for i in range(self.n_features):
-                obs.append(0)
-            rew = -self.w * self.getpower(0)
-            act = []
-            for i in range(self.n_actions):
-                act.append(0)
-            self.QL.store_transition(obs, act, rew, self.obs_)
-            self.obs = obs
-        elif (100 - self.cpu < cost):
-            self.work.append([last_time, cost])
-        else:
-            self.doing.append(start_time + last_time)
-            self.doingcost.append(cost)
-            self.cpu = self.cpu + cost
-        self.cur_time = start_time
+    def cpu(self):
+        return 1 - self.cpu_idle / self.cpu_num
 
-    def getnext(self):
-        if (self.awake > 0):
-            return self.awake
-        elif (len(self.doing) > 0):
-            return np.min(self.doing)
-        else:
-            return -1
+    def add_task(self, task):
+        self.pending_queue.append(task)
 
-    def done(self):
-        if (self.awake > 0):
-            self.cur_time = self.awake
-            self.state = 1
-            self.awake = -1
-            while (len(self.work) != 0 and 100 - self.cpu > self.work[0][1]):
-                self.cpu = self.cpu + self.work[0][1]
-                self.doing.append(self.work[0][0] + self.cur_time)
-                self.doingcost.append(self.work[0][1])
-                del self.work[0]
-        elif (len(self.doing) > 0):
-            i = int(np.argmin(self.doing))
-            self.cur_time = self.doing[i]
-            self.cpu = self.cpu - self.doingcost[i]
-            del self.doing[i]
-            del self.doingcost[i]
-            while (len(self.work) != 0 and 100 - self.cpu > self.work[0][1]):
-                self.cpu = self.cpu + self.work[0][1]
-                self.doing.append(self.work[0][0] + self.cur_time)
-                self.doingcost.append(self.work[0][1])
-                del self.work[0]
-            if (len(self.doing) == 0 and len(self.work) == 0):
-                if (len(self.interval) == 0):
-                    t = 0
+        ### train predictor
+        self.last_arrive_time = task.arrive_time
+        if self.last_arrive_time != 0:
+            self.intervals.append(task.arrive_time - self.last_arrive_time)
+        if len(self.intervals) > 1:
+            self.predictor.train(self.intervals[:-1], self.intervals[-1])
+
+        ### a task arrives and interrupts the sleeping
+        if self.state == 0:
+            self.pending_queue.append(task)
+            if (self.awake_time > task.arrive_time + self.T_on):
+                self.awake_time = task.arrive_time + self.T_on
+            self.rew -= (1 - self.w)
+
+        ### a task comes and the server has already awaken
+        elif self.state == 1 and self.cpu() == 0:
+            self.rew -= self.w * self.P_0 * (task.arrive_time - self.cur_time)
+
+    def process(self, cur_time):
+        if self.awake_time > cur_time:
+            self.cur_time = cur_time
+            return
+        self.cur_time = max(self.cur_time, self.awake_time)
+
+        while True:
+            while len(self.pending_queue) > 0:
+                task = self.pending_queue[0]
+                if task.plan_cpu <= self.cpu_idle and task.plan_mem <= self.mem_empty:
+                    task.start(cur_time)
+                    self.pending_queue.popleft()
+                    self.cpu_idle -= task.plan_cpu
+                    self.mem_empty -= task.plan_mem
+                    heapq.heappush(self.running_queue, (self.cur_time + task.last_time, task))
                 else:
-                    tmp = []
-                    if (len(self.interval) > 35):
-                        for i in range(35):
-                            tmp.append(self.interval[i + len(self.interval) - 35])
-                    else:
-                        for i in range(len(self.interval)):
-                            tmp.append(self.interval[i])
-                    t = self.predictor.predict(tmp)
-                t = int(t)
-                if (t > self.n_features):
-                    t = self.n_features
-                obs = [self.getpower(0)]
-                for i in range(t - 1):
-                    obs.append(0)
-                obs.append(1)
-                for i in range(self.n_features - t):
-                    obs.append(0)
-                rew = -self.w * self.getpower(0)
-                act = self.QL.choose_action(obs)
-                self.QL.store_transition(obs, act, rew, self.obs_)
-                self.QL.learn()
-                self.obs = obs
-                self.awake = self.cur_time + np.argmax(act)
-                self.state = 0
+                    break
+
+            end_time, task = self.running_queue[0]
+            if end_time <= cur_time:
+                heapq.heappop(self.running_queue)
+                self.cpu_idle += task.plan_cpu
+                self.mem_empty += task.plan_mem
+                self.cur_time = end_time
+            else:
+                break
+
+        self.cur_time = cur_time
+
+        if len(self.running_queue) == 0 and len(self.pending_queue) == 0:
+            pred = min(self.n_features, int(self.predictor.predict(self.intervals)))
+            obs = [self.P_0, np.eye(self.n_features)[pred]]
+            act = self.QL.choose_action(obs)
+            self.QL.store_transition(self.obs, self.act, self.rew, obs)
+            self.QL.learn()
+            self.obs = obs
+            self.act = act
+            self.awake = self.cur_time + act
+            self.state = 0
