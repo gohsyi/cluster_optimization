@@ -7,8 +7,11 @@ from model.dqn import DeepQNetwork
 class Model(BaseModel):
     def __init__(self, args):
         super().__init__(args)
+        self.lr = args.dqn_lr
         self.env = Env(args)
         self.global_model = DeepQNetwork(
+            name='global',
+            learning_rate=self.lr,
             n_actions=self.n_servers,
             n_features=self.n_servers * self.n_resources + self.n_resources + 1
         )

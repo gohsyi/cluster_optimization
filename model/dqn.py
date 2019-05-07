@@ -11,12 +11,14 @@ Tensorflow: r1.2
 
 import numpy as np
 import tensorflow as tf
+from util import getLogger
 
 
 # Deep Q Network off-policy
 class DeepQNetwork:
     def __init__(
             self,
+            name,
             n_actions,
             n_features,
             learning_rate=0.01,
@@ -26,11 +28,12 @@ class DeepQNetwork:
             memory_size=500,
             batch_size=32,
             e_greedy_increment=None,
-            output_graph=False,
             seed=1,
     ):
         np.random.seed(seed)
         tf.set_random_seed(seed)
+
+        self.logger = getLogger('logs', name)
 
         self.n_actions = n_actions
         self.n_features = n_features
@@ -61,13 +64,7 @@ class DeepQNetwork:
         config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
         config.gpu_options.allow_growth = True
         self.sess = tf.Session(config=config)
-
-        if output_graph:
-            # $ tensorboard --logdir=logs
-            tf.summary.FileWriter("logs/", self.sess.graph)
-
         self.sess.run(tf.global_variables_initializer())
-        self.cost_his = []
 
     def _build_net(self):
         # ------------------ all inputs ------------------------
@@ -80,17 +77,31 @@ class DeepQNetwork:
 
         # ------------------ build evaluate_net ------------------
         with tf.variable_scope('eval_net'):
-            e1 = tf.layers.dense(self.s, 20, tf.nn.relu, kernel_initializer=w_initializer,
-                                 bias_initializer=b_initializer, name='e1')
-            self.q_eval = tf.layers.dense(e1, self.n_actions, kernel_initializer=w_initializer,
-                                          bias_initializer=b_initializer, name='q')
+            e1 = tf.layers.dense(
+                self.s, 20,
+                activation=tf.nn.relu,
+                kernel_initializer=w_initializer,
+                bias_initializer=b_initializer, name='e1'
+            )
+            self.q_eval = tf.layers.dense(
+                e1, self.n_actions,
+                kernel_initializer=w_initializer,
+                bias_initializer=b_initializer, name='q'
+            )
 
         # ------------------ build target_net ------------------
         with tf.variable_scope('target_net'):
-            t1 = tf.layers.dense(self.s_, 20, tf.nn.relu, kernel_initializer=w_initializer,
-                                 bias_initializer=b_initializer, name='t1')
-            self.q_next = tf.layers.dense(t1, self.n_actions, kernel_initializer=w_initializer,
-                                          bias_initializer=b_initializer, name='t2')
+            t1 = tf.layers.dense(
+                self.s_, 20,
+                activation=tf.nn.relu,
+                kernel_initializer=w_initializer,
+                bias_initializer=b_initializer, name='t1'
+            )
+            self.q_next = tf.layers.dense(
+                t1, self.n_actions,
+                kernel_initializer=w_initializer,
+                bias_initializer=b_initializer, name='t2'
+            )
 
         with tf.variable_scope('q_target'):
             q_target = self.r + self.gamma * tf.reduce_max(self.q_next, axis=1, name='Qmax_s_')    # shape=(None, )
@@ -137,28 +148,17 @@ class DeepQNetwork:
             sample_index = np.random.choice(self.memory_counter, size=self.batch_size)
         batch_memory = self.memory[sample_index, :]
 
-        _, cost = self.sess.run(
-            [self._train_op, self.loss],
-            feed_dict={
-                self.s: batch_memory[:, :self.n_features],
-                self.a: batch_memory[:, self.n_features],
-                self.r: batch_memory[:, self.n_features + 1],
-                self.s_: batch_memory[:, -self.n_features:],
-            })
+        r = np.mean(batch_memory[:, self.n_features + 1])
 
-        self.cost_his.append(cost)
+        _, cost = self.sess.run([self._train_op, self.loss], feed_dict={
+            self.s: batch_memory[:, :self.n_features],
+            self.a: batch_memory[:, self.n_features],
+            self.r: batch_memory[:, self.n_features + 1],
+            self.s_: batch_memory[:, -self.n_features:],
+        })
+
+        self.logger.info('loss:{}\trew:{}'.format(cost, r))
 
         # increasing epsilon
         self.epsilon = self.epsilon + self.epsilon_increment if self.epsilon < self.epsilon_max else self.epsilon_max
         self.learn_step_counter += 1
-
-    def plot_cost(self):
-        import matplotlib.pyplot as plt
-        plt.plot(np.arange(len(self.cost_his)), self.cost_his)
-        plt.ylabel('Cost')
-        plt.xlabel('training steps')
-        plt.show()
-
-
-if __name__ == '__main__':
-    DQN = DeepQNetwork(tf.Session(), 3,4, output_graph=True)

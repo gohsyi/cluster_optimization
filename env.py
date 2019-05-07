@@ -2,10 +2,14 @@ import os
 import pandas as pd
 import numpy as np
 from model.local_tier import Machine
+from util import getLogger
 
 
 class Env(object):
     def __init__(self, args):
+        self.logger = getLogger('logs', 'env')
+        self.logger.info(str(args))
+
         self.args = args
         self.P_0 = args.P_0
         self.P_100 = args.P_100
@@ -102,6 +106,7 @@ class Env(object):
         self.cur_task = 0
 
     def loadcsv(self):
+        self.logger.info('loading csv file ...')
         #  read csv into DataFrames
         self.machine_meta = pd.read_csv(self.machine_meta_path, header=None, names=self.machine_meta_cols)
         self.machine_meta = self.machine_meta[self.machine_meta['time_stamp'] == 0]
@@ -111,57 +116,67 @@ class Env(object):
         self.batch_task = self.batch_task[self.batch_task['status'] == 'Terminated'].sort_values(by='start_time')
 
         self.n_machines = self.n_servers
+
+        self.logger.info('building local tier ...')
         self.machines = [
-            Machine(self.args,
-                    self.machine_meta.iloc[i]['cpu_num'],
-                    self.machine_meta.iloc[i]['mem_size']
+            Machine(self.args, 100, 100
+                    # self.machine_meta.iloc[i]['cpu_num'],
+                    # self.machine_meta.iloc[i]['mem_size']
             ) for i in range(self.n_machines)
         ]
 
     def reset(self):
         self.cur_task = 0
-        cur_time = self.batch_task[self.cur_task]['start_time']
+        cur_time = self.batch_task.iloc[self.cur_task]['start_time']
         cur_task = Task(
-            self.batch_task[self.cur_task]['start_time'],
-            self.batch_task[self.cur_task]['end_time'],
-            self.batch_task[self.cur_task]['plan_cpu'],
-            self.batch_task[self.cur_task]['plan_mem']
+            self.batch_task.iloc[self.cur_task]['task_name'],
+            self.batch_task.iloc[self.cur_task]['start_time'],
+            self.batch_task.iloc[self.cur_task]['end_time'],
+            self.batch_task.iloc[self.cur_task]['plan_cpu'],
+            self.batch_task.iloc[self.cur_task]['plan_mem']
         )
         return self.get_states(cur_task)
 
     def step(self, action):
-        self.cur_time = self.batch_task[self.cur_task]['start_time']
+        self.cur_time = self.batch_task.iloc[self.cur_task]['start_time']
         cur_task = Task(
-            self.batch_task[self.cur_task]['start_time'],
-            self.batch_task[self.cur_task]['end_time'],
-            self.batch_task[self.cur_task]['plan_cpu'],
-            self.batch_task[self.cur_task]['plan_mem']
+            self.batch_task.iloc[self.cur_task]['task_name'],
+            self.batch_task.iloc[self.cur_task]['start_time'],
+            self.batch_task.iloc[self.cur_task]['end_time'],
+            self.batch_task.iloc[self.cur_task]['plan_cpu'],
+            self.batch_task.iloc[self.cur_task]['plan_mem']
         )
         self.cur_task += 1
         nxt_task = Task(
-            self.batch_task[self.cur_task]['start_time'],
-            self.batch_task[self.cur_task]['end_time'],
-            self.batch_task[self.cur_task]['plan_cpu'],
-            self.batch_task[self.cur_task]['plan_mem']
+            self.batch_task.iloc[self.cur_task]['task_name'],
+            self.batch_task.iloc[self.cur_task]['start_time'],
+            self.batch_task.iloc[self.cur_task]['end_time'],
+            self.batch_task.iloc[self.cur_task]['plan_cpu'],
+            self.batch_task.iloc[self.cur_task]['plan_mem']
         )
-        self.machines[action].add_task(cur_task)
+        self.logger.info('dispatch task {} to machine {}'.format(cur_task.name, action))
 
         ### simulate to current time
         for m in self.machines:
             m.process(self.cur_time)
 
-        return self.get_states(nxt_task), self.get_reward(), nxt_task
+        self.machines[action].add_task(cur_task)
+
+        return self.get_states(nxt_task), self.get_neg_reward(), nxt_task
 
     def get_states(self, nxt_task):
+        self.logger.info('cpu:' + str([m.cpu_idle for m in self.machines]))
+        self.logger.info('mem:' + str([m.mem_empty for m in self.machines]))
+
         states = [m.cpu_idle for m in self.machines] + \
                  [m.mem_empty for m in self.machines] + \
                  [nxt_task.plan_cpu, nxt_task.plan_mem, nxt_task.last_time]
-        return states
+        return np.array(states)  # scale
 
-    def get_reward(self):
-        return self.w1 * self.calc_total_power() + \
-               self.w2 * self.calc_number_vms() + \
-               self.w3 * self.calc_reli_obj()
+    def get_neg_reward(self):
+        return -self.w1 * self.calc_total_power() + \
+               -self.w2 * self.calc_number_vms() + \
+               -self.w3 * self.calc_reli_obj()
 
     def calc_total_power(self):
         for m in self.machines:
@@ -175,7 +190,8 @@ class Env(object):
 
 
 class Task(object):
-    def __init__(self, start_time, end_time, plan_cpu, plan_mem):
+    def __init__(self, name, start_time, end_time, plan_cpu, plan_mem):
+        self.name = name
         self.arrive_time = start_time
         self.last_time = end_time - start_time
         self.plan_cpu = plan_cpu

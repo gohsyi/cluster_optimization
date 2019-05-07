@@ -9,7 +9,6 @@ class BaseModel(object):
         self.coef_numbervms = args.w2
         self.coef_reliobj = args.w3
         self.hid_size = list(map(int, args.hid_size.split(',')))
-        self.lr = args.lr
         self.max_epoches = args.max_epoches
         self.batch_size = args.batch_size
         self.replace_target_iter = args.replace_target_iter
