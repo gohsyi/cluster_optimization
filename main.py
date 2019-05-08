@@ -16,7 +16,7 @@ def parse_arg():
     parser.add_argument('-opt_fn', type=str, default='adam', help='sgd/adam/adamgrad')
     parser.add_argument('-seed', type=int, default=0)
     parser.add_argument('-dqn_lr', type=float, default=1e-5)
-    parser.add_argument('-lstm_lr', type=float, default=1e-7)
+    parser.add_argument('-lstm_lr', type=float, default=1e-8)
     parser.add_argument('-batch_size', type=int, default=64)
     parser.add_argument('-memory_size', type=int, default=64)
     parser.add_argument('-max_epoches', type=int, default=int(1e5))

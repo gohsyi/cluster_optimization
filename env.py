@@ -107,19 +107,25 @@ class Env(object):
 
     def loadcsv(self):
         self.logger.info('loading csv file ...')
+
         #  read csv into DataFrames
         self.machine_meta = pd.read_csv(self.machine_meta_path, header=None, names=self.machine_meta_cols)
         self.machine_meta = self.machine_meta[self.machine_meta['time_stamp'] == 0]
         self.machine_meta = self.machine_meta[['machine_id', 'cpu_num', 'mem_size']]
 
         self.batch_task = pd.read_csv(self.batch_task_path, header=None, names=self.batch_task_cols)
-        self.batch_task = self.batch_task[self.batch_task['status'] == 'Terminated'].sort_values(by='start_time')
+        self.batch_task = self.batch_task[self.batch_task['status'] == 'Terminated']
+        self.batch_task = self.batch_task[self.batch_task['plan_cpu'] <= 100]
+        self.batch_task = self.batch_task.sort_values(by='start_time')
+        # self.batch_task['end_time'] -= pd.DataFrame.min(self.batch_task['start_time'])
+        # self.batch_task['start_time'] -= pd.DataFrame.min(self.batch_task['start_time'])
 
         self.n_machines = self.n_servers
 
         self.logger.info('building local tier ...')
         self.machines = [
-            Machine(self.args, 100, 100
+            Machine(self.args, 100, 100,
+                    self.machine_meta.iloc[i]['machine_id'],
                     # self.machine_meta.iloc[i]['cpu_num'],
                     # self.machine_meta.iloc[i]['mem_size']
             ) for i in range(self.n_machines)
@@ -154,7 +160,10 @@ class Env(object):
             self.batch_task.iloc[self.cur_task]['plan_cpu'],
             self.batch_task.iloc[self.cur_task]['plan_mem']
         )
-        self.logger.info('dispatch task {} to machine {}'.format(cur_task.name, action))
+        self.logger.info('dispatch task {} to machine {}'.format(
+            cur_task.name,
+            self.machines[action].machine_id)
+        )
 
         ### simulate to current time
         for m in self.machines:
@@ -199,6 +208,10 @@ class Task(object):
 
     def start(self, start_time):
         self.start_time = start_time
+        self.end_time = start_time + self.last_time
 
     def done(self, cur_time):
         return cur_time >= self.start_time + self.last_time
+
+    def __lt__(self, other):
+        return self.start_time + self.last_time < other.start_time + other.last_time
