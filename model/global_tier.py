@@ -40,6 +40,8 @@ class Model(BaseModel):
         # obs = self.env.reset(False)  # initial observation
         self.env.latency = []
         self.env.power_usage = []
+        for m in self.env.machines:
+            m.power_usage = 0
         while not done:
             act = self.global_model.choose_action(obs)  # RL choose action based on observation
             obs_, rew, done, info = self.env.step(act)  # RL take action and get next observation and reward
