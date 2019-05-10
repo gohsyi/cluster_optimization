@@ -103,7 +103,9 @@ class Env(object):
         ]
 
         self.loadcsv()
-        self.cur_task = 0
+        self.cur = 0
+        self.power_usage = []
+        self.latency = []
 
     def loadcsv(self):
         self.logger.info('loading csv file ...')
@@ -115,51 +117,54 @@ class Env(object):
 
         self.batch_task = pd.read_csv(self.batch_task_path, header=None, names=self.batch_task_cols)
         self.batch_task = self.batch_task[self.batch_task['status'] == 'Terminated']
-        self.batch_task = self.batch_task[self.batch_task['plan_cpu'] <= 100]
+        self.batch_task = self.batch_task[self.batch_task['plan_cpu'] <= 100]  # will stuck the pending queue
         self.batch_task = self.batch_task.sort_values(by='start_time')
         # self.batch_task['end_time'] -= pd.DataFrame.min(self.batch_task['start_time'])
         # self.batch_task['start_time'] -= pd.DataFrame.min(self.batch_task['start_time'])
 
         self.n_machines = self.n_servers
+        # self.n_tasks = self.batch_task.shape[0]
+        self.n_tasks = 10000
 
         self.logger.info('building local tier ...')
-        self.machines = [
-            Machine(self.args, 100, 100,
-                    self.machine_meta.iloc[i]['machine_id'],
-                    # self.machine_meta.iloc[i]['cpu_num'],
-                    # self.machine_meta.iloc[i]['mem_size']
-            ) for i in range(self.n_machines)
-        ]
 
-    def reset(self):
-        self.cur_task = 0
-        cur_time = self.batch_task.iloc[self.cur_task]['start_time']
-        cur_task = Task(
-            self.batch_task.iloc[self.cur_task]['task_name'],
-            self.batch_task.iloc[self.cur_task]['start_time'],
-            self.batch_task.iloc[self.cur_task]['end_time'],
-            self.batch_task.iloc[self.cur_task]['plan_cpu'],
-            self.batch_task.iloc[self.cur_task]['plan_mem']
-        )
-        return self.get_states(cur_task)
+        self.tasks = [ Task(
+            self.batch_task.iloc[i]['task_name'],
+            self.batch_task.iloc[i]['start_time'],
+            self.batch_task.iloc[i]['end_time'],
+            self.batch_task.iloc[i]['plan_cpu'],
+            self.batch_task.iloc[i]['plan_mem']
+        ) for i in range(self.n_tasks) ]
+
+    def reset(self, is_baseline):
+        self.cur = 0
+        self.power_usage = []
+        self.latency = []
+
+        self.machines = [ Machine(
+            self.args, 100, 100,
+            self.machine_meta.iloc[i]['machine_id'],
+            is_baseline,
+        ) for i in range(self.n_machines) ]
+
+        return self.get_states(self.tasks[self.cur])
 
     def step(self, action):
-        self.cur_time = self.batch_task.iloc[self.cur_task]['start_time']
-        cur_task = Task(
-            self.batch_task.iloc[self.cur_task]['task_name'],
-            self.batch_task.iloc[self.cur_task]['start_time'],
-            self.batch_task.iloc[self.cur_task]['end_time'],
-            self.batch_task.iloc[self.cur_task]['plan_cpu'],
-            self.batch_task.iloc[self.cur_task]['plan_mem']
-        )
-        self.cur_task += 1
-        nxt_task = Task(
-            self.batch_task.iloc[self.cur_task]['task_name'],
-            self.batch_task.iloc[self.cur_task]['start_time'],
-            self.batch_task.iloc[self.cur_task]['end_time'],
-            self.batch_task.iloc[self.cur_task]['plan_cpu'],
-            self.batch_task.iloc[self.cur_task]['plan_mem']
-        )
+        self.cur_time = self.batch_task.iloc[self.cur]['start_time']
+        cur_task = self.tasks[self.cur]
+
+        done = False
+        self.cur += 1
+        if self.cur == self.n_tasks:
+            self.latency = [t.start_time - t.arrive_time for t in self.tasks]
+            for i in range(1, len(self.latency)):
+                self.latency[i] = self.latency[i] + self.latency[i - 1]
+            # for m in self.machines:
+            #     m.finish_jobs()
+            done = True
+            self.cur = 0
+
+        nxt_task = self.tasks[self.cur]
         self.logger.info('dispatch task {} to machine {}'.format(
             cur_task.name,
             self.machines[action].machine_id)
@@ -169,9 +174,17 @@ class Env(object):
         for m in self.machines:
             m.process(self.cur_time)
 
+        self.power_usage.append(np.sum([m.power_usage for m in self.machines]))
+        self.logger.info('ep:{}\ttime:{}\tpower:{}\tlatency:{}'.format(
+            self.cur,
+            self.cur_time,
+            self.power_usage[-1],
+            np.sum([t.start_time - t.arrive_time for t in self.tasks])
+        ))
+
         self.machines[action].add_task(cur_task)
 
-        return self.get_states(nxt_task), self.get_neg_reward(), nxt_task
+        return self.get_states(nxt_task), self.get_reward(), done, (self.power_usage, self.latency)
 
     def get_states(self, nxt_task):
         self.logger.info('cpu:' + str([m.cpu_idle for m in self.machines]))
@@ -182,7 +195,7 @@ class Env(object):
                  [nxt_task.plan_cpu, nxt_task.plan_mem, nxt_task.last_time]
         return np.array(states)  # scale
 
-    def get_neg_reward(self):
+    def get_reward(self):
         return -self.w1 * self.calc_total_power() + \
                -self.w2 * self.calc_number_vms() + \
                -self.w3 * self.calc_reli_obj()
@@ -205,6 +218,7 @@ class Task(object):
         self.last_time = end_time - start_time
         self.plan_cpu = plan_cpu
         self.plan_mem = plan_mem
+        self.start_time = self.arrive_time
 
     def start(self, start_time):
         self.start_time = start_time

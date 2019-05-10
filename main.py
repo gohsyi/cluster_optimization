@@ -33,4 +33,4 @@ def parse_arg():
 if __name__ == '__main__':
     args = parse_arg()
     model = Model(args)
-    model.train()
+    model.run()

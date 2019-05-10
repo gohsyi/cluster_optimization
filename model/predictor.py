@@ -25,6 +25,7 @@ class Predictor(BaseModel):
         outputs_, states_ = tf.nn.dynamic_rnn(cell_, self.X, initial_state=init_state)
         self.pred_ = tf.layers.dense(
             states_[-1][-1], 1,
+            activation=tf.nn.relu,
             kernel_initializer=tf.truncated_normal_initializer(stddev=0.1)
         )
         self.loss_ = tf.reduce_mean(tf.squared_difference(self.pred_, self.Y))
