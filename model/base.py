@@ -8,11 +8,17 @@ class BaseModel(object):
         self.coef_totalpower = args.w1
         self.coef_numbervms = args.w2
         self.coef_reliobj = args.w3
-        self.hid_size = list(map(int, args.hid_size.split(',')))
         self.max_epoches = args.max_epoches
         self.batch_size = args.batch_size
         self.replace_target_iter = args.replace_target_iter
         self.memory_size = args.memory_size
+
+        self.a2c_hidsizes = list(map(int, args.a2c_hidsizes.split(',')))
+        self.lstm_hidsizes = list(map(int, args.lstm_hidsizes.split(',')))
+
+        self.dqn_lr = args.dqn_lr
+        self.a2c_lr = args.a2c_lr
+        self.lstm_lr = args.lstm_lr
 
         if args.ac_fn == 'tanh':
             self.ac_fn = tf.nn.tanh

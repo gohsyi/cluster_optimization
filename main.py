@@ -10,13 +10,18 @@ def parse_arg():
     parser.add_argument('-w2', type=float, default=1e-4)
     parser.add_argument('-w3', type=float, default=1e-4)
 
-    parser.add_argument('-hid_size', type=str, default='128,64')
+    parser.add_argument('-a2c_lr', type=float, default=1e-5)
+    parser.add_argument('-dqn_lr', type=float, default=1e-5)
+    parser.add_argument('-lstm_lr', type=float, default=1e-8)
+
+    parser.add_argument('-a2c_hidsizes', type=str, default='128,64')
+    parser.add_argument('-dqn_hidsizes', type=str, default='128,64')
+    parser.add_argument('-lstm_hidsizes', type=str, default='128,64')
+
     parser.add_argument('-replace_target_iter', type=int, default=int(1e2))
     parser.add_argument('-ac_fn', type=str, default='sigmoid', help='relu/elu/sigmoid/tanh')
     parser.add_argument('-opt_fn', type=str, default='adam', help='sgd/adam/adamgrad')
     parser.add_argument('-seed', type=int, default=0)
-    parser.add_argument('-dqn_lr', type=float, default=1e-5)
-    parser.add_argument('-lstm_lr', type=float, default=1e-8)
     parser.add_argument('-batch_size', type=int, default=64)
     parser.add_argument('-memory_size', type=int, default=64)
     parser.add_argument('-max_epoches', type=int, default=int(1e5))

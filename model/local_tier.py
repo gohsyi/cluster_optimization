@@ -1,13 +1,19 @@
 import heapq
 import numpy as np
 import tensorflow as tf
+
 from collections import deque
+
+from model.base import BaseModel
 from model.predictor import Predictor
 from model.dqn import DeepQNetwork
+from model.actor_critic import ActorCritic
 
 
-class Machine(object):
-    def __init__(self, args, cpu_num, mem_size, machine_id, is_baseline):
+class Machine(BaseModel):
+    def __init__(self, args, cpu_num, mem_size, machine_id, optimized=None):
+        super(Machine, self).__init__(args)
+
         self.machine_id = machine_id
         self.P_0 = args.P_0
         self.P_100 = args.P_100
@@ -21,47 +27,54 @@ class Machine(object):
         self.mem_size = mem_size
         self.cpu_idle = cpu_num
         self.mem_empty = mem_size
+        self.optimized = optimized
+
+        self.lr = self.a2c_lr
+        self.hidsizes = self.a2c_hidsizes
+        self.ac_fn = self.ac_fn
 
         self.cur_time = 0
         self.awake_time = 0
         self.intervals = deque(maxlen=35 + 1)
         self.state = 'waken'  # waken, active, sleeping
         self.w = 0.5
-
         self.n_features = 100
         self.n_actions = 100
-
         self.last_arrive_time = 0
         self.power_usage = 0
         self.obs = None
         self.act = None
         self.rew = 0
 
-        self.is_baseline = is_baseline
-
-        if not self.is_baseline:
+        if self.optimized:
             with tf.variable_scope('local_model', reuse=tf.AUTO_REUSE):
                 self.predictor = Predictor(args)
-                self.QL = DeepQNetwork(
+                self.model = ActorCritic(
                     name='local',
                     n_actions=100,
                     n_features=1 + self.n_features,
-                    learning_rate=args.dqn_lr
+                    lr=self.lr,
+                    ac_fn=self.ac_fn,
+                    hidsizes=self.hidsizes,
                 )
+                # self.model = DeepQNetwork(
+                #     name='local',
+                #     n_actions=100,
+                #     n_features=1 + self.n_features,
+                #     learning_rate=args.dqn_lr
+                # )
 
     def cpu(self):
         return 1 - self.cpu_idle / self.cpu_num
 
     def add_task(self, task):
         self.pending_queue.append(task)
-
-        if not self.is_baseline:
+        if self.optimized:
             self.train_predictor(task)
             if self.state == 'sleeping':
                 self.try_to_wake_up(task)
             elif self.state == 'active' and self.cpu_idle == self.cpu_num:
                 self.rew -= self.w * self.P_0 * (task.arrive_time - self.cur_time)
-
         self.process_pending_queue()
 
     """
@@ -138,7 +151,7 @@ class Machine(object):
         while self.process_pending_queue() or self.process_running_queue(cur_time):
             pass
 
-        if not self.is_baseline:
+        if self.optimized:
             if self.state != 'awake' and \
                     self.is_empty(self.pending_queue) and \
                     self.is_empty(self.running_queue):
@@ -147,14 +160,13 @@ class Machine(object):
                 else:
                     pred = 0
                 obs = np.concatenate([np.array([self.P_0]), np.eye(self.n_features)[pred]], axis=-1)
-                act = self.QL.choose_action(obs)
+                act = self.model.choose_action(obs)
                 if self.obs is not None:
-                    self.QL.store_transition(self.obs, self.act, self.rew, obs)
-                    self.QL.learn()
+                    self.model.store_transition(self.obs, self.act, self.rew, obs)
+                    self.model.learn()
                 self.obs = obs
                 self.act = act
                 self.rew = 0
-
                 if act > 0:
                     self.awake_time = self.cur_time + act + self.T_on + self.T_off
                     self.state = 'sleeping'

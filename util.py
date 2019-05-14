@@ -32,7 +32,7 @@ def getLogger(folder, name):
 
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s\tmodel:{}\t%(message)s'.format(name))
+    formatter = logging.Formatter('%(asctime)s\tmodule:{}\t%(message)s'.format(name))
 
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.setLevel(logging.INFO)

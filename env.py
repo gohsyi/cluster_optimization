@@ -136,7 +136,7 @@ class Env(object):
             self.batch_task.iloc[i]['plan_mem']
         ) for i in range(self.n_tasks) ]
 
-    def reset(self, is_baseline):
+    def reset(self, optimized):
         self.cur = 0
         self.power_usage = []
         self.latency = []
@@ -144,7 +144,7 @@ class Env(object):
         self.machines = [ Machine(
             self.args, 100, 100,
             self.machine_meta.iloc[i]['machine_id'],
-            is_baseline,
+            optimized,
         ) for i in range(self.n_machines) ]
 
         return self.get_states(self.tasks[self.cur])

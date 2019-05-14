@@ -11,11 +11,12 @@ class Predictor(BaseModel):
         self.Y = tf.placeholder(tf.float32, [None, 1])
 
         self.lr = args.lstm_lr
+        self.hidsizes = self.lstm_hidsizes
 
         self.logger = getLogger('logs', 'predictor')
 
         lstm_cells = []
-        for i, hdim in enumerate(self.hid_size):
+        for i, hdim in enumerate(self.hidsizes):
             lstm_cell_ = tf.nn.rnn_cell.LSTMCell(hdim, activation=tf.nn.relu)
             lstm_cells.append(lstm_cell_)
 
