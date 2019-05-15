@@ -29,7 +29,7 @@ class Predictor(BaseModel):
             activation=tf.nn.relu,
             kernel_initializer=tf.truncated_normal_initializer(stddev=0.1)
         )
-        self.pred_ = tf.clip_by_value(pred_, tf.constant(0), tf.constant(10000))
+        self.pred_ = tf.clip_by_value(pred_, tf.constant(0.), tf.constant(10000.))
         self.loss_ = tf.reduce_mean(tf.squared_difference(self.pred_, self.Y))
         self.opt_ = self.opt_fn(self.lr).minimize(self.loss_)
 
