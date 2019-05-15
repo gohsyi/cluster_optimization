@@ -24,11 +24,12 @@ class Predictor(BaseModel):
         init_state = cell_.zero_state(batch_size=1, dtype=tf.float32)
 
         outputs_, states_ = tf.nn.dynamic_rnn(cell_, self.X, initial_state=init_state)
-        self.pred_ = tf.layers.dense(
+        pred_ = tf.layers.dense(
             states_[-1][-1], 1,
             activation=tf.nn.relu,
             kernel_initializer=tf.truncated_normal_initializer(stddev=0.1)
         )
+        self.pred_ = tf.clip_by_value(pred_, tf.constant(0), tf.constant(10000))
         self.loss_ = tf.reduce_mean(tf.squared_difference(self.pred_, self.Y))
         self.opt_ = self.opt_fn(self.lr).minimize(self.loss_)
 
