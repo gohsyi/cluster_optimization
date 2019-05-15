@@ -123,8 +123,8 @@ class Env(object):
         # self.batch_task['start_time'] -= pd.DataFrame.min(self.batch_task['start_time'])
 
         self.n_machines = self.n_servers
-        # self.n_tasks = self.batch_task.shape[0]
-        self.n_tasks = 10000
+        self.n_tasks = self.batch_task.shape[0]
+        # self.n_tasks = 10000
 
         self.logger.info('building local tier ...')
 

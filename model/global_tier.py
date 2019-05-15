@@ -2,6 +2,8 @@ import numpy as np
 from env import Env
 from model.base import BaseModel
 from model.dqn import DeepQNetwork
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 plt.style.use('ggplot')
 
