@@ -20,50 +20,43 @@ class Model(BaseModel):
 
     def run(self):
         ### hierarchical DRL
-        # done = False
-        # info = None
-        # ep = 0
-        # obs = self.env.reset(False)  # initial observation
-        # while not done:
-        #     act = self.global_model.choose_action(obs)  # RL choose action based on observation
-        #     obs_, rew, done, info = self.env.step(act)  # RL take action and get next observation and reward
-        #     self.global_model.store_transition(obs, act, rew, obs_)
-        #     if ep > 200 and ep % 5 == 0:
-        #         self.global_model.learn()
-        #     obs = obs_  # swap observation
-        #     ep += 1
-        # rl_power_usage, rl_latency = info
+        obs = self.env.reset(True)  # initial observation
+        for _ in range(10):  # same data, train 10 times
+            done = False
+            ep = 0
+            while not done:
+                act = self.global_model.choose_action(obs)  # RL choose action based on observation
+                obs_, rew, done, info = self.env.step(act)  # RL take action and get next observation and reward
+                self.global_model.store_transition(obs, act, rew, obs_)
+                if ep > 200 and ep % 5 == 0:
+                    self.global_model.learn()
+                obs = obs_  # swap observation
+                ep += 1
+            obs = self.env.clean()
+        # testing
+        done = False
+        info = None
+        ep = 0
+        while not done:
+            act = self.global_model.choose_action(obs)  # RL choose action based on observation
+            obs_, rew, done, info = self.env.step(act)  # RL take action and get next observation and reward
+            obs = obs_  # swap observation
+            ep += 1
+        hrl_power_usage, hrl_latency = info
 
         ### only local server
         done = False
         info = None
         obs = self.env.reset(True)  # initial observation
-        while not done:
-            m_cpu = (100, 0)
-            for i, m in enumerate(self.env.machines):
-                if m.cpu() < m_cpu[0]:
-                    m_cpu = (m.cpu(), i)
-            obs_, rew, done, info = self.env.step(m_cpu[1])
+        for _ in range(10):
+            while not done:
+                m_cpu = (100, 0)
+                for i, m in enumerate(self.env.machines):
+                    if m.cpu() < m_cpu[0]:
+                        m_cpu = (m.cpu(), i)
+                obs_, rew, done, info = self.env.step(m_cpu[1])
+            self.env.clean()
         rl_power_usage, rl_latency = info
-
-        # done = False
-        # info = None
-        # ep = 0
-        # # obs = self.env.reset(False)  # initial observation
-        # self.env.latency = []
-        # self.env.power_usage = []
-        # for m in self.env.machines:
-        #     m.power_usage = 0
-        # while not done:
-        #     act = self.global_model.choose_action(obs)  # RL choose action based on observation
-        #     obs_, rew, done, info = self.env.step(act)  # RL take action and get next observation and reward
-        #     # test
-        #     # self.global_model.store_transition(obs, act, rew, obs_)
-        #     # if ep > 200 and ep % 5 == 0:
-        #     #     self.global_model.learn()
-        #     obs = obs_  # swap observation
-        #     ep += 1
-        # rl_power_usage, rl_latency = info
 
         ### random dispatch
         done = False
@@ -101,7 +94,8 @@ class Model(BaseModel):
         plt.plot(r_power_usage, c='g', label='Random')
         plt.plot(rr_power_usage, c='b', label='Round Robin')
         plt.plot(g_power_usage, c='r', label='Greedy')
-        plt.plot(rl_power_usage, c='c', label='Hierarchical DRL')
+        plt.plot(hrl_power_usage, c='c', label='Hierarchical DRL')
+        plt.plot(rl_power_usage, c='y', label='DRL (only local)')
         plt.xlabel('Number of Jobs')
         plt.ylabel('Energy Usage (kWh)')
         plt.legend()
@@ -113,7 +107,8 @@ class Model(BaseModel):
         plt.plot(r_latency, c='g', label='Random')
         plt.plot(rr_latency, c='b', label='Round Robin')
         plt.plot(g_latency, c='r', label='Greedy')
-        plt.plot(rl_latency, c='c', label='Hierarchical DRL')
+        plt.plot(hrl_latency, c='c', label='Hierarchical DRL')
+        plt.plot(rl_latency, c='y', label='DRL (only local)')
         plt.xlabel('Number of Jobs')
         plt.ylabel('Accumulated Job latency')
         plt.legend()

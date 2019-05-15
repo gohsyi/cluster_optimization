@@ -136,6 +136,16 @@ class Env(object):
             self.batch_task.iloc[i]['plan_mem']
         ) for i in range(self.n_tasks) ]
 
+    def clean(self):
+        self.cur = 0
+        self.power_usage = []
+        self.latency = []
+
+        for m in self.machines:
+            m.power_usage = 0
+
+        return self.get_states(self.tasks[self.cur])
+
     def reset(self, optimized):
         self.cur = 0
         self.power_usage = []
