@@ -2,33 +2,30 @@ import os
 import sys
 import time
 import logging
+
 from contextlib import contextmanager
 
 
-"""
-returns an empty list with shape (d0, d1, d2)
-"""
-def empty_list(d0, d1=None, d2=None):
-    if d1 is None:
-        return [[] for _ in range(d0)]
-    elif d2 is None:
-        return [[[] for _ in range(d1)] for __ in range(d0)]
-    else:
-        return [[[[] for _ in range(d2)] for __ in range(d1)] for ___ in range(d0)]
+def split_integers(string):
+    return list(map(int, string.split(',')))
 
 
-"""
-returns a logger with std output and file output
-"""
-def getLogger(folder, name):
+def get_logger(name, folder='logs'):
+    """
+    get a logger with std output and file output
+    :param folder: logger folder
+    :param name: logger name
+    :return: logger
+    """
+
     if not os.path.exists(folder):
         os.mkdir(folder)
 
     if name in logging.Logger.manager.loggerDict:
         return logging.getLogger(name)
 
-    if os.path.exists(os.path.join('logs', '{}.log'.format(name))):
-        os.remove(os.path.join('logs', '{}.log'.format(name)))
+    if os.path.exists(os.path.join(folder, '{}.log'.format(name))):
+        os.remove(os.path.join(folder, '{}.log'.format(name)))
 
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
@@ -48,7 +45,9 @@ def getLogger(folder, name):
 
 
 @contextmanager
-def timed(msg, logger):
+def timed(msg, logger=None):
+    output = logger.info if logger else print
+    output(msg)
     tstart = time.time()
     yield
-    logger.info('%s done in %.3f seconds' % (msg, time.time() - tstart))
+    output('done in %.3f seconds' % (time.time() - tstart))
