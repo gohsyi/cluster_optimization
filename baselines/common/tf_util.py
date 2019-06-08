@@ -109,7 +109,8 @@ def load_variables(load_path, variables=None, sess=None):
 
 
 def sample(logits):
-    return tf.squeeze(tf.multinomial(tf.log(logits), 1), -1)
+    cliped_logits = tf.clip_by_value(logits, tf.constant(1e-4), tf.constant(1-(1e-4)))
+    return tf.squeeze(tf.multinomial(tf.log(cliped_logits), 1), -1)
 
 def sample_k(logits, k):
     """
