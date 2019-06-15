@@ -8,7 +8,7 @@ class BiCNet(BaseException):
         np.random.seed(seed)
         tf.set_random_seed(seed)
 
-        self.logger = get_logger('logs', name)
+        self.logger = get_logger(name)
 
         self.n_actions = n_actions
         self.n_features = n_features

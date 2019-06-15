@@ -11,9 +11,8 @@ from common.argparser import args
 
 class Env(object):
     def __init__(self):
-        self.logger = get_logger('env')
+        self.logger = get_logger('env', os.path.join('logs', args.note))
         self.log = self.logger.info
-        self.log(str(args))
 
         self.P_0 = args.P_0
         self.P_100 = args.P_100

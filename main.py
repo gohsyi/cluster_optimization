@@ -69,9 +69,9 @@ if __name__ == '__main__':
             _, _, done, info = env.step(action)
 
         power_usage, latency = info
-        actions = np.bincount(actions, minlength=args.n_servers)
+        actions = np.bincount(actions, minlength=args.n_servers) / args.n_tasks
 
-        np.savetxt(os.path.join('logs', f'{model.name}_power.txt'), power_usage)
-        np.savetxt(os.path.join('logs', f'{model.name}_latency.txt'), latency)
+        np.savetxt(os.path.join('logs', args.note, f'{model.name}_power.txt'), power_usage)
+        np.savetxt(os.path.join('logs', args.note, f'{model.name}_latency.txt'), latency)
 
         logger.info(f'{model.name} {actions}')
