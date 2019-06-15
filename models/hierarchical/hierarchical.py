@@ -1,7 +1,10 @@
 import numpy as np
 
+from tqdm import tqdm
+
 from baselines.a2c.a2c import Model
 from baselines.a2c.utils import discount_with_dones
+
 from models.hierarchical.predictor import Predictor
 
 
@@ -40,7 +43,9 @@ def learn_hierarchical(env, batch_size, total_epoches, gamma,
 
     mb_obs, mb_acts, mb_rews, mb_vals, mb_dones = [], [], [], [], []
 
-    for ep in range(total_epoches):
+    tqdm.write('training hierarchical model')
+
+    for ep in tqdm(range(total_epoches)):
         obs = env.reset(model.local_model, model.predictor)  # initial observation
         done = False
 

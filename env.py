@@ -112,7 +112,7 @@ class Env(object):
         self.latency = []
 
     def loadcsv(self):
-        self.logger.info('loading csv file ...')
+        # self.logger.info('loading csv file ...')
 
         #  read csv into DataFrames
         self.machine_meta = pd.read_csv(self.machine_meta_path, header=None, names=self.machine_meta_cols)
@@ -129,8 +129,6 @@ class Env(object):
 
         self.n_machines = self.n_servers
         self.n_tasks = args.n_tasks or self.batch_task.shape[0]
-
-        self.logger.info('building local tier ...')
 
         self.tasks = [ Task(
             self.batch_task.iloc[i]['task_name'],
@@ -180,30 +178,30 @@ class Env(object):
             self.cur = 0
 
         nxt_task = self.tasks[self.cur]
-        self.logger.info('dispatch task {} to machine {}'.format(
-            cur_task.name,
-            self.machines[action].machine_id)
-        )
+        # self.logger.info('dispatch task {} to machine {}'.format(
+        #     cur_task.name,
+        #     self.machines[action].machine_id)
+        # )
 
         ### simulate to current time
         for m in self.machines:
             m.process(self.cur_time)
 
         self.power_usage.append(np.sum([m.power_usage for m in self.machines]))
-        self.logger.info('ep:{}\ttime:{}\tpower:{}\tlatency:{}'.format(
-            self.cur,
-            self.cur_time,
-            self.power_usage[-1],
-            np.sum([t.start_time - t.arrive_time for t in self.tasks])
-        ))
+        # self.logger.info('ep:{}\ttime:{}\tpower:{}\tlatency:{}'.format(
+        #     self.cur,
+        #     self.cur_time,
+        #     self.power_usage[-1],
+        #     np.sum([t.start_time - t.arrive_time for t in self.tasks])
+        # ))
 
         self.machines[action].add_task(cur_task)
 
         return self.get_states(nxt_task), self.get_reward(), done, (self.power_usage, self.latency)
 
     def get_states(self, nxt_task):
-        self.logger.info('cpu:' + str([m.cpu_idle for m in self.machines]))
-        self.logger.info('mem:' + str([m.mem_empty for m in self.machines]))
+        # self.logger.info('cpu:' + str([m.cpu_idle for m in self.machines]))
+        # self.logger.info('mem:' + str([m.mem_empty for m in self.machines]))
 
         states = [m.cpu_idle for m in self.machines] + \
                  [m.mem_empty for m in self.machines] + \

@@ -1,5 +1,7 @@
 import numpy as np
 
+from tqdm import tqdm
+
 from baselines.a2c.a2c import Model
 
 
@@ -34,7 +36,9 @@ def learn_local(env, total_epoches, n_servers,
 
     model = Local(n_servers, l_ob_size, l_act_size, l_latents, l_lr, l_ac)
 
-    for ep in range(total_epoches):
+    tqdm.write('training local model')
+
+    for ep in tqdm(range(total_epoches)):
         obs = env.reset(model.local_model, model.predictor)  # initial observation
         done = False
 

@@ -5,6 +5,8 @@ from common import util
 
 parser = argparse.ArgumentParser()
 
+parser.add_argument('-note', type=str, default='debug')
+
 # environment setting
 parser.add_argument('-n_servers', type=int, default=10)
 parser.add_argument('-n_resources', type=int, default=2)

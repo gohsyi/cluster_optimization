@@ -1,10 +1,12 @@
 from common import args
-from common.util import timed
+from common import get_logger
 
 from env import Env
 
 import os
 import numpy as np
+
+from tqdm import tqdm
 
 from models import Stochastic
 from models import RoundRobin
@@ -14,6 +16,9 @@ from models import learn_hierarchical
 
 
 if __name__ == '__main__':
+    logger = get_logger(args.note)
+    logger.info(str(args))
+
     env = Env()
 
     models = [
@@ -53,13 +58,20 @@ if __name__ == '__main__':
     ]
 
     for model in models:
+        actions = []
         done = False
         obs = env.reset(model.local_model, model.predictor)
-        while not done:
+        tqdm.write(f'running {model.name}')
+
+        for _ in tqdm(range(args.n_tasks)):
             action = int(model.step(obs))
+            actions.append(action)
             _, _, done, info = env.step(action)
 
         power_usage, latency = info
+        actions = np.bincount(actions, minlength=args.n_servers)
 
         np.savetxt(os.path.join('logs', f'{model.name}_power.txt'), power_usage)
         np.savetxt(os.path.join('logs', f'{model.name}_latency.txt'), latency)
+
+        logger.info(f'{model.name} {actions}')
