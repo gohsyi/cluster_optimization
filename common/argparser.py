@@ -20,13 +20,13 @@ parser.add_argument('-T_off', type=int, default=30)
 
 # global-tier setting
 parser.add_argument('-g_lr', type=float, default=1e-5)
-parser.add_argument('-g_ac', type=str, default='relu')
+parser.add_argument('-g_ac', type=str, default='sigmoid')
 parser.add_argument('-g_opt', type=str, default='adam')
 parser.add_argument('-g_latents', type=str, default='128,64')
 
 # local-tier setting
 parser.add_argument('-l_lr', type=float, default=1e-5)
-parser.add_argument('-l_ac', type=str, default='relu')
+parser.add_argument('-l_ac', type=str, default='sigmoid')
 parser.add_argument('-l_opt', type=str, default='adam')
 parser.add_argument('-l_latents', type=str, default='128,64')
 parser.add_argument('-l_obsize', type=int, default=100)

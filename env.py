@@ -122,6 +122,7 @@ class Env(object):
         self.batch_task = pd.read_csv(self.batch_task_path, header=None, names=self.batch_task_cols)
         self.batch_task = self.batch_task[self.batch_task['status'] == 'Terminated']
         self.batch_task = self.batch_task[self.batch_task['plan_cpu'] <= 100]  # will stuck the pending queue
+        self.batch_task = self.batch_task[self.batch_task['start_time'] > 85000]
         self.batch_task = self.batch_task.sort_values(by='start_time')
         # self.batch_task['end_time'] -= pd.DataFrame.min(self.batch_task['start_time'])
         # self.batch_task['start_time'] -= pd.DataFrame.min(self.batch_task['start_time'])

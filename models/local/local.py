@@ -1,7 +1,6 @@
 import numpy as np
 
 from baselines.a2c.a2c import Model
-from models.hierarchical.predictor import Predictor
 
 
 class Local(object):
@@ -14,7 +13,7 @@ class Local(object):
         self.name = 'local'
 
         self.local_model = Model('local_only', l_ob_size, l_act_size, l_latents, l_lr, l_ac)
-        self.predictor = Predictor('local_lstm')
+        self.predictor = None
 
     def step(self, obs):
         m_cpu = (100, [])
