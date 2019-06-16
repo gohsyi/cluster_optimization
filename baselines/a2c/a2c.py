@@ -113,7 +113,7 @@ class Model(object):
                 X: np.reshape(obs, (-1, ob_size))
             })
 
-        def train(obs, rewards, actions, values):
+        def train(obs, actions, rewards, values):
             # Here we calculate advantage A(s,a) = R + yV(s') - V(s)
             # rewards = R + yV(s')
             advs = rewards - values
