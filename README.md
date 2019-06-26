@@ -3,6 +3,15 @@
 Course project of Computer Network, where we aim to optimize the task distribution in clusters and the cluster management with Deep Reinforcement Learning (DRL). There are tasks that last for different time and require varied resources in the clusters of big companies such as Google, Amazon, Alibaba, etc. Better allocation of these tasks brings higher service quality and reduces power consumption. Therefore, our group implemented a hierarchical task scheduler for clusters based on the framework of [A Hierarchical Framework of Cloud Resource Allocation and Power Management Using Deep Reinforcement Learning](https://arxiv.org/abs/1703.04221). We recommend you to read the paper before further reading this project.
 
 
+## Usage
+```
+python main.py \
+-n_servers {number of servers, default is 10} \
+-n_tasks {number of tasks, default using all tasks in the dataset}
+```
+You can refer to `common/argparser.py` to use more available parameters.
+
+
 ## Architecture
 
 The hierarchical framework is as in figure below. It comprises a global tier for VM resource allocation to the servers and a local tier for distributed power management of local servers. And the goal is to achieve the best trade-off between tasks' latency and power/energy consumption in a server cluster. We implemented this complex framework, then analyzed some issues of it and made modification to address them.
@@ -36,6 +45,14 @@ Thus, we propose to use a rule-based model in replace of the global RL model to 
 
 
 ## Experiment
+
+We did experiments on dataset `alibaba_clusterdata_v2018` and compared the performance of stochastic model, round robin model, greedy (rule-based) model, hierarchical model and local model (hierarchical model with rule-based global tier).
+
+1. The stochastic model dispatches jobs randomly and the server will not sleep. 
+2. The round robin model dispatches jobs in a round-robin way (in turns) and the server will not sleep.
+3. The greedy model (rule-based model) dispatches job to the current server with the lowest CPU usage and the server will not sleep.
+4. The hierarchical model is the original model we implemented and has been introduced.
+5. The local model is the hierarchical model but with global tier replaced by greedy model.
 
 The job latency and power usage are shown below. 
 
